@@ -1,115 +1,137 @@
-module Main (
-    main
-) where
 
-import Term
-import Trans
-import Text.ParserCombinators.Parsec
-import Debug.Trace
+module Main where 
+
+import MCalculus
+import PSL
+import Evaluate
+import Time
+import Verify
+import Debug.Trace 
 import System.Directory
 import System.IO
-import Control.Monad
-import Data.List
-import System.Exit
+import Text.PrettyPrint.HughesPJ
+import Text.ParserCombinators.Parsec
+import Text.ParserCombinators.Parsec.Expr
+import qualified Text.ParserCombinators.Parsec.Token as T
+import Text.ParserCombinators.Parsec.Language
 
-data Command = Load String
-             | Prog
-             | Term
-             | Eval
-             | Super
-             | Quit
-             | Help
-             | Unknown
+data Command = Load String 
+             | Proc
+             | Evaluate
+             | Properties
+             | Verify
+             | Help 
+             | Quit 
+             | Unknown 
 
 command str = let res = words str
-              in case res of
+              in case res of 
                    [":load",f] -> Load f
-                   [":prog"] -> Prog
-                   [":term"] -> Term
-                   [":eval"] -> Eval
-                   [":super"] -> Super
-                   [":quit"] -> Quit
+                   [":process"] -> Proc
+                   [":evaluate"] -> Evaluate
+                   [":properties"] -> Properties
+                   [":verify"] -> Verify
                    [":help"] -> Help
+                   [":quit"] -> Quit
                    _ -> Unknown
 
-helpMessage = "\n:load filename\t\tTo load the given filename\n"++
-               ":prog\t\t\tTo print the current program\n"++
-               ":term\t\t\tTo print the current term\n"++
-               ":eval\t\t\tTo evaluate the current term\n"++
-               ":super\t\t\tTo supercompile the current program\n"++
-               ":quit\t\t\tTo quit\n"++
-               ":help\t\t\tTo print this message\n"
+help_message = "\n:load filename\t\tTo load a file\n"++
+               ":process\t\tTo show the current process\n"++
+               ":evaluate\t\tTo evaluate the current process\n"++
+               ":properties\t\tTo show the current properties\n"++
+               ":verify\t\t\tTo verify the current process\n"++
+               ":help\t\t\tTo print this message\n"++
+               ":quit\t\t\tTo quit\n"
 
--- Entry point for main program
+spec = emptyDef
+       { commentStart    = "/*"
+       , commentEnd      = "*/"
+       , commentLine     = "--"
+       , nestedComments  = True
+       , reservedNames   = ["DEFINITIONS","ENDD","SYSTEM","ENDS","PROPERTIES","ENDP"]
+       , caseSensitive   = True
+       }
 
-main = toplevel Nothing
+speclexer = T.makeTokenParser spec
 
-toplevel :: Maybe Prog -> IO ()
-toplevel p = do putStr "POT> "
-                hFlush stdout
-                x <-  getLine
-                case command x of
-                   Load f -> g [f] [] []
-                             where
-                             g [] ys ds = let ds' = makeFuns ds
-                                          in  case lookup "main" ds' of
-                                                 Nothing -> do putStrLn "No main function"
-                                                               toplevel Nothing
-                                                 Just (xs,t) -> toplevel (Just (t,ds'))
-                             g (x:xs) ys ds = if   x `elem` ys
-                                              then g xs ys ds
-                                              else do r <- loadFile x
-                                                      case r of
-                                                         Nothing -> toplevel Nothing
-                                                         Just (fs,ds2) -> g (xs++fs) (x:ys) (ds++ds2)
-                   Prog -> case p of
-                              Nothing -> do putStrLn "No program loaded"
-                                            toplevel p
-                              Just (t,ds) -> do putStrLn (showProg (t,ds))
-                                                toplevel p
-                   Term -> case p of
-                              Nothing -> do putStrLn "No program loaded"
-                                            toplevel p
-                              Just (t,ds) -> do print t
-                                                toplevel p
-                   Eval -> case p of
-                              Nothing -> do putStrLn "No program loaded"
-                                            toplevel p
-                              Just (t,ds) -> f (free t) t
-                                             where
-                                             f [] t = do let (v,r,a) = eval t EmptyCtx ds 0 0
-                                                         print v
-                                                         putStrLn ("Reductions: " ++ show r)
-                                                         putStrLn ("Allocations: " ++ show a)
-                                                         toplevel p
-                                             f (x:xs) t = do putStr (x++" = ")
-                                                             hFlush stdout
-                                                             l <-  getLine
-                                                             case parseTerm l of
-                                                                Left s -> do putStrLn ("Could not parse term: "++ show s)
-                                                                             f (x:xs) t
-                                                                Right u -> f xs (subst u (abstract t x))
-                   Super -> case p of
-                               Nothing -> do putStrLn "No program loaded"
-                                             toplevel p
-                               Just t -> do let u = sup t
-                                            print u
-                                            toplevel (Just (u,[]))
-                   Quit -> return ()
-                   Help -> do putStrLn helpMessage
-                              toplevel p
-                   Unknown -> do putStrLn "Err: Could not parse command, type ':help' for a list of commands"
-                                 toplevel p
+reserve   = T.reserved speclexer
 
-loadFile :: String -> IO (Maybe ([String],[(String,([String],Term))]))
+specification = do
+                ds <-     do
+                          reserve "DEFINITIONS"
+                          ds <- many definition
+                          reserve "ENDD"
+                          return ds
+                      <|> do
+                          spaces
+                          return []
+                reserve "SYSTEM"
+                p <- compoundprocess
+                reserve "ENDS"
+                ps <-     do
+                          reserve "PROPERTIES"
+                          ps <- many stochasticproperty
+                          reserve "ENDP"
+                          return ps
+                      <|> do
+                          spaces
+                          return []
+                return (addlets p ds [],ps)
 
-loadFile f = do x <-  doesFileExist (f++".pot")
-                if   x
-                     then do putStrLn ("Loading file: "++f++".pot")
-                             c <-  readFile (f++".pot")
-                             case parseModule c of
-                                Left s -> do putStrLn ("Could not parse program in file "++f++".pot: "++ show s)
-                                             return Nothing
-                                Right t -> return (Just t)
-                     else do putStrLn ("No such file: "++f++".pot")
-                             return Nothing
+parseSpecification input = parse specification "" input
+
+showprop (n,prop) = do 
+                    putStrLn ("Property " ++ show n ++ ": " ++ show prop)
+
+checkprop p (n,prop) = do 
+                       putStrLn ("Property " ++ show n ++ ": " ++ show prop)
+                       if   (prove prop p (Finite 0,Finite 0) []) then putStrLn "Property satisfied " else putStrLn "Property violated"
+
+main = toplevel Nothing []
+
+toplevel process properties = do putStr "Master> "
+                                 hFlush stdout
+                                 x <- getLine
+                                 case (command x) of 
+                                    Load f -> let f' = f++".M"
+                                              in  do x <- doesFileExist f'
+                                                     if   x 
+                                                          then do
+                                                               res <- readFile f'
+                                                               case parseSpecification res of 
+                                                                  Left s -> do putStrLn ("Err: Could not parse M-Calculus specification in file "++f'++show s)
+                                                                               toplevel process properties
+                                                                  Right (p,ps) -> do putStrLn ("Loading file: "++f')
+                                                                                     toplevel (Just p) ps
+                                                          else do putStrLn ("No such file: "++f') 
+                                                                  toplevel process properties
+                                    Proc -> case process of 
+                                               Nothing -> do putStrLn "No specification loaded" 
+                                                             toplevel process properties
+                                               Just p -> do putStrLn (show p)
+                                                            toplevel process properties
+                                    Evaluate -> case process of 
+                                                   Nothing -> do putStrLn "No program loaded" 
+                                                                 toplevel process properties
+                                                   Just p -> let q = simplify (eval p (free p) [] Null)
+                                                             in  toplevel (Just q) properties
+                                    Properties -> case properties of
+                                                     [] -> do putStrLn "No properties"
+                                                              toplevel process properties
+                                                     ps -> do mapM_ showprop (zip [1..] ps)
+                                                              toplevel process properties
+                                    Verify -> case process of
+                                                 Nothing -> do putStrLn "No process loaded"
+                                                               toplevel process properties
+                                                 Just p -> case properties of
+                                                              [] -> do putStrLn "No properties to verify"
+                                                                       toplevel process properties
+                                                              ps -> let q = simplify (eval p (free p) [] Null)
+                                                                    in  do mapM_ (checkprop q) (zip [1..] ps)
+                                                                           toplevel process properties
+                                    Help -> do putStrLn help_message 
+                                               toplevel process properties
+                                    Quit -> return ()
+                                    Unknown -> do putStrLn "Err: Could not parse command, type ':help' for a list of commands"
+                                                  toplevel process properties
+
