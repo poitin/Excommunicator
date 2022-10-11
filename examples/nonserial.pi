@@ -1,0 +1,4 @@
+C(l,r)
+where
+C(i,o) = (new m) B(l,m) | B(m,r);
+B(i,o) = i(x).o<x>.B(i,o)

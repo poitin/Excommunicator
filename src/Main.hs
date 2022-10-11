@@ -1,11 +1,8 @@
 
 module Main where 
 
-import MCalculus
-import PSL
-import Evaluate
-import Time
-import Verify
+import PiCalculus
+import Trans
 import Debug.Trace 
 import System.Directory
 import System.IO
@@ -15,123 +12,70 @@ import Text.ParserCombinators.Parsec.Expr
 import qualified Text.ParserCombinators.Parsec.Token as T
 import Text.ParserCombinators.Parsec.Language
 
-data Command = Load String 
-             | Proc
-             | Evaluate
-             | Properties
-             | Verify
-             | Help 
-             | Quit 
-             | Unknown 
+data Command = Load String -- load specification
+             | Proc -- display current process
+             | Spec -- display current specification
+             | Transform -- transform current specification
+             | Help  -- view available commands
+             | Quit -- quit program
+             | Unknown -- erroneous command
 
 command str = let res = words str
               in case res of 
                    [":load",f] -> Load f
-                   [":process"] -> Proc
-                   [":evaluate"] -> Evaluate
-                   [":properties"] -> Properties
-                   [":verify"] -> Verify
+                   [":proc"] -> Proc
+                   [":spec"] -> Spec
+                   [":transform"] -> Transform
                    [":help"] -> Help
                    [":quit"] -> Quit
                    _ -> Unknown
 
-help_message = "\n:load filename\t\tTo load a file\n"++
-               ":process\t\tTo show the current process\n"++
-               ":evaluate\t\tTo evaluate the current process\n"++
-               ":properties\t\tTo show the current properties\n"++
-               ":verify\t\t\tTo verify the current process\n"++
-               ":help\t\t\tTo print this message\n"++
-               ":quit\t\t\tTo quit\n"
+help_message = "\n:load filename\tTo load a file\n"++
+               ":proc\t\tTo show the current process\n"++
+               ":spec\t\tTo show the current specification\n"++
+               ":transform\tTo transform the current process\n"++
+               ":help\t\tTo print this message\n"++
+               ":quit\t\tTo quit\n"
 
-spec = emptyDef
-       { commentStart    = "/*"
-       , commentEnd      = "*/"
-       , commentLine     = "--"
-       , nestedComments  = True
-       , reservedNames   = ["DEFINITIONS","ENDD","SYSTEM","ENDS","PROPERTIES","ENDP"]
-       , caseSensitive   = True
-       }
+-- REPL ofr main program
 
-speclexer = T.makeTokenParser spec
+main = toplevel Nothing
 
-reserve   = T.reserved speclexer
-
-specification = do
-                ds <-     do
-                          reserve "DEFINITIONS"
-                          ds <- many definition
-                          reserve "ENDD"
-                          return ds
-                      <|> do
-                          spaces
-                          return []
-                reserve "SYSTEM"
-                p <- compoundprocess
-                reserve "ENDS"
-                ps <-     do
-                          reserve "PROPERTIES"
-                          ps <- many stochasticproperty
-                          reserve "ENDP"
-                          return ps
-                      <|> do
-                          spaces
-                          return []
-                return (addlets p ds [],ps)
-
-parseSpecification input = parse specification "" input
-
-showprop (n,prop) = do 
-                    putStrLn ("Property " ++ show n ++ ": " ++ show prop)
-
-checkprop p (n,prop) = do 
-                       putStrLn ("Property " ++ show n ++ ": " ++ show prop)
-                       if   (prove prop p (Finite 0,Finite 0) []) then putStrLn "Property satisfied " else putStrLn "Property violated"
-
-main = toplevel Nothing []
-
-toplevel process properties = do putStr "Master> "
-                                 hFlush stdout
-                                 x <- getLine
-                                 case (command x) of 
-                                    Load f -> let f' = f++".M"
-                                              in  do x <- doesFileExist f'
-                                                     if   x 
-                                                          then do
-                                                               res <- readFile f'
-                                                               case parseSpecification res of 
-                                                                  Left s -> do putStrLn ("Err: Could not parse M-Calculus specification in file "++f'++show s)
-                                                                               toplevel process properties
-                                                                  Right (p,ps) -> do putStrLn ("Loading file: "++f')
-                                                                                     toplevel (Just p) ps
-                                                          else do putStrLn ("No such file: "++f') 
-                                                                  toplevel process properties
-                                    Proc -> case process of 
-                                               Nothing -> do putStrLn "No specification loaded" 
-                                                             toplevel process properties
-                                               Just p -> do putStrLn (show p)
-                                                            toplevel process properties
-                                    Evaluate -> case process of 
-                                                   Nothing -> do putStrLn "No program loaded" 
-                                                                 toplevel process properties
-                                                   Just p -> let q = simplify (eval p (free p) [] Null)
-                                                             in  toplevel (Just q) properties
-                                    Properties -> case properties of
-                                                     [] -> do putStrLn "No properties"
-                                                              toplevel process properties
-                                                     ps -> do mapM_ showprop (zip [1..] ps)
-                                                              toplevel process properties
-                                    Verify -> case process of
-                                                 Nothing -> do putStrLn "No process loaded"
-                                                               toplevel process properties
-                                                 Just p -> case properties of
-                                                              [] -> do putStrLn "No properties to verify"
-                                                                       toplevel process properties
-                                                              ps -> let q = simplify (eval p (free p) [] Null)
-                                                                    in  do mapM_ (checkprop q) (zip [1..] ps)
-                                                                           toplevel process properties
-                                    Help -> do putStrLn help_message 
-                                               toplevel process properties
-                                    Quit -> return ()
-                                    Unknown -> do putStrLn "Err: Could not parse command, type ':help' for a list of commands"
-                                                  toplevel process properties
+toplevel spec = do putStr "Pi> "
+                   hFlush stdout
+                   x <- getLine
+                   case command x of 
+                      Load f -> let f' = f++".pi"
+                                in  do x <- doesFileExist f'
+                                       if   x 
+                                       then do
+                                            c <- readFile f'
+                                            case parseSpec c of 
+                                               Left s -> do putStrLn ("Err: Could not parse pi-calculus specification in file "++f'++show s)
+                                                            toplevel spec
+                                               Right s -> do putStrLn ("Loading file: "++f')
+                                                             toplevel (Just s)
+                                       else do putStrLn ("No such file: "++f') 
+                                               toplevel spec
+                      Proc -> case spec of 
+                                 Nothing -> do putStrLn "No specification loaded" 
+                                               toplevel spec
+                                 Just (p,d) -> do putStrLn (show p)
+                                                  toplevel spec
+                      Spec -> case spec of 
+                                 Nothing -> do putStrLn "No specification loaded" 
+                                               toplevel spec
+                                 Just s -> do putStrLn (showSpec s)
+                                              toplevel spec
+                      Transform -> case spec of
+                                      Nothing -> do putStrLn "No specification loaded"
+                                                    toplevel spec
+                                      Just (p,d) -> let s = residualise (par p Null [] [] d) []
+                                                    in  do putStrLn (showSpec s)
+                                                           toplevel (Just s)
+                      Help -> do putStrLn help_message 
+                                 toplevel spec
+                      Quit -> return ()
+                      Unknown -> do putStrLn "Err: Could not parse command, type ':help' for a list of commands"
+                                    toplevel spec
 

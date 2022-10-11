@@ -1,0 +1,58 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.34.4.
+--
+-- see: https://github.com/sol/hpack
+
+name:           excommunicator
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/poitin/excommunicator#readme>
+homepage:       https://github.com/poitin/excommunicator#readme
+bug-reports:    https://github.com/poitin/excommunicator/issues
+author:         Geoff Hamilton
+maintainer:     geoffrey.hamilton@dcu.ie
+copyright:      2022 Geoff Hamilton
+license:        BSD3
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+source-repository head
+  type: git
+  location: https://github.com/poitin/excommunicator
+
+library
+  exposed-modules:
+      Main
+      PiCalculus
+      Trans
+  other-modules:
+      Paths_excommunicator
+  hs-source-dirs:
+      src
+  build-depends:
+      base >=4.7 && <5
+    , directory
+    , parsec
+    , pretty
+    , process
+  default-language: Haskell2010
+
+executable excommunicator
+  main-is: Main.hs
+  other-modules:
+      PiCalculus
+      Trans
+      Paths_excommunicator
+  hs-source-dirs:
+      src
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , directory
+    , excommunicator
+    , parsec
+    , pretty
+    , process
+  default-language: Haskell2010

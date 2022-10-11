@@ -1,0 +1,3 @@
+B(l,r)
+where
+B(i,o) = i(x).o<x>.B(i,o)
