@@ -39,19 +39,19 @@ par p (Compose' q1 q2) r m d = let p' = par p q1 [] m d
                                in  foldr New (Compose' p' q') xs
 par (Call f xs) q r m d = let p = Compose (Call f xs) q
                               xs'' = free p \\ r
-                          in  case [f' | (f',p') <- m, not (null (renaming p' p))] of
+                          in  case [f' | (f',(xs',p')) <- m, not (null (renaming' p' p (zip xs' xs'')))] of
                                  [] -> case lookup f d of
                                           Nothing -> error ("Undefined process: "++f)
                                           Just (xs',p')  -> let f' = renameVar (map fst m) f
-                                                            in  Unfold f' xs'' (par (rename (zip xs' xs) p') q r ((f',p):m) d)
+                                                            in  Unfold f' xs'' (par (rename (zip xs' xs) p') q r ((f',(xs'',p)):m) d)
                                  (f':_) -> Fold f' xs''
 par p (Call f xs) r m d = let q = Compose p (Call f xs)
                               xs'' = free q \\ r
-                          in  case [f' | (f',p') <- m, not (null (renaming p' q))] of
+                          in  case [f' | (f',(xs',p')) <- m, not (null (renaming' p' q (zip xs' xs'')))] of
                                  [] -> case lookup f d of
                                           Nothing -> error ("Undefined process: "++f)
                                           Just (xs',p')  -> let f' = renameVar (map fst m) f
-                                                            in  Unfold f' xs'' (par p (rename (zip xs' xs) p') r ((f',q):m) d)
+                                                            in  Unfold f' xs'' (par p (rename (zip xs' xs) p') r ((f',(xs'',q)):m) d)
                                  (f':_) -> Fold f' xs''
 par p q r m d = choice (lpar p q r m d) (lpar q p r m d)
 

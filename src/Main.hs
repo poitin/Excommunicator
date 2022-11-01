@@ -30,12 +30,12 @@ command str = let res = words str
                    [":quit"] -> Quit
                    _ -> Unknown
 
-help_message = "\n:load filename\tTo load a file\n"++
-               ":proc\t\tTo show the current process\n"++
-               ":spec\t\tTo show the current specification\n"++
-               ":transform\tTo transform the current process\n"++
-               ":help\t\tTo print this message\n"++
-               ":quit\t\tTo quit\n"
+helpMessage = "\n:load filename\tTo load a file\n"++
+              ":proc\t\tTo show the current process\n"++
+              ":spec\t\tTo show the current specification\n"++
+              ":transform\tTo transform the current process\n"++
+              ":help\t\tTo print this message\n"++
+              ":quit\t\tTo quit\n"
 
 -- REPL ofr main program
 
@@ -73,7 +73,7 @@ toplevel spec = do putStr "Pi> "
                                       Just (p,d) -> let s = residualise (par p Null [] [] d) []
                                                     in  do putStrLn (showSpec s)
                                                            toplevel (Just s)
-                      Help -> do putStrLn help_message 
+                      Help -> do putStrLn helpMessage 
                                  toplevel spec
                       Quit -> return ()
                       Unknown -> do putStrLn "Err: Could not parse command, type ':help' for a list of commands"

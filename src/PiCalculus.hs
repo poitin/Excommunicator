@@ -30,7 +30,7 @@ data Process = Null -- null process
              | Fold String [String] -- folded process application
 
 instance Show Process where
-   show t = render $ prettyProcess t
+   show p = render $ prettyProcess p
 
 type Spec = (Process,[(String,([String],Process))])
 
