@@ -39,7 +39,7 @@ par p (Compose' q1 q2) r m d = let p' = par p q1 [] m d
                                in  foldr New (Compose' p' q') xs
 par (Call f xs) q r m d = let p = Compose (Call f xs) q
                               xs'' = free p \\ r
-                          in  case [f' | (f',(xs',p')) <- m, not (null (renaming' p' p (zip xs' xs'')))] of
+                          in  case [f' | (f',(xs',p')) <- m, length xs' == length xs'' && not (null (renaming' p' p (zip xs' xs'')))] of
                                  [] -> case lookup f d of
                                           Nothing -> error ("Undefined process: "++f)
                                           Just (xs',p')  -> let f' = renameVar (map fst m) f
@@ -47,7 +47,7 @@ par (Call f xs) q r m d = let p = Compose (Call f xs) q
                                  (f':_) -> Fold f' xs''
 par p (Call f xs) r m d = let q = Compose p (Call f xs)
                               xs'' = free q \\ r
-                          in  case [f' | (f',(xs',p')) <- m, not (null (renaming' p' q (zip xs' xs'')))] of
+                          in  case [f' | (f',(xs',p')) <- m, length xs' == length xs'' && not (null (renaming' p' q (zip xs' xs'')))] of
                                  [] -> case lookup f d of
                                           Nothing -> error ("Undefined process: "++f)
                                           Just (xs',p')  -> let f' = renameVar (map fst m) f
@@ -78,7 +78,7 @@ choice p q = Choice p q
 
 -- residualise result of transformation
 
-residualise p d = residualise' p [] d
+residualise p = residualise' p []
 
 residualise' Null m d = (Null,d)
 residualise' (Input x y p) m d = let (p',d') = residualise' p m d
