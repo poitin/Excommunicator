@@ -70,9 +70,9 @@ toplevel spec = do putStr "Pi> "
                       Transform -> case spec of
                                       Nothing -> do putStrLn "No specification loaded"
                                                     toplevel spec
-                                      Just (p,d) -> let s = residualise (par p Null [] [] d) []
-                                                    in  do putStrLn (showSpec s)
-                                                           toplevel (Just s)
+                                      Just (p,d) -> let (p',_,d') = par p Null [] [] d
+                                                    in  do putStrLn (showSpec (p',d'))
+                                                           toplevel (Just (p',d'))
                       Help -> do putStrLn helpMessage 
                                  toplevel spec
                       Quit -> return ()

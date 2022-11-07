@@ -1,0 +1,3 @@
+Data(c,d) | Data(e,f) | Data(g,h)
+where
+Data(i,o) = i(x).o<x>.Data(i,o)

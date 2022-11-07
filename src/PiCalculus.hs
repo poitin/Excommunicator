@@ -12,8 +12,6 @@ import Text.ParserCombinators.Parsec.Expr
 import qualified Text.ParserCombinators.Parsec.Token as T
 import Text.ParserCombinators.Parsec.Language
 
-import Debug.Trace 
-
 -- pi-calculus processes
 
 data Process = Null -- null process
@@ -26,8 +24,6 @@ data Process = Null -- null process
              | Match String String Process -- match
              | Choice Process Process -- non-deterministic choice
              | Call String [String] -- named process application
-             | Unfold String [String] Process -- unfolded process application
-             | Fold String [String] -- folded process application
 
 instance Show Process where
    show p = render $ prettyProcess p
@@ -57,8 +53,6 @@ free' (Compose' p q) = free' p ++ free' q
 free' (Match x y p) = x:y:free' p
 free' (Choice p q) = free' p ++ free' q
 free' (Call f xs) = xs
-free' (Unfold f xs p) = xs
-free' (Fold f xs) = xs
 
 -- rename names in a process
 
@@ -80,8 +74,6 @@ rename r (Compose' p q) = Compose' (rename r p) (rename r q)
 rename r (Match x y p) = Match (renameName r x) (renameName r y) (rename r p)
 rename r (Choice p q) = Choice (rename r p) (rename r q)
 rename r (Call f xs) = Call f (map (renameName r) xs)
-rename r (Unfold f xs p) = Unfold f (map (renameName r) xs) (rename r p)
-rename r (Fold f xs) = Fold f (map (renameName r) xs)
 
 renameName r x = fromMaybe x (lookup x r)
 
@@ -99,13 +91,30 @@ renaming' (Compose' p q) (Compose' p' q') r = concat [renaming' p p' r' | r' <- 
 renaming' (Match x y p) (Match x' y' q) r = concat [renaming' p q r'' | r' <- extend x x' r, r'' <- extend y y' r']
 renaming' (Choice p q) (Choice p' q') r = concat [renaming' p p' r' | r' <- renaming' q q' r]
 renaming' (Call f xs) (Call f' xs') r | f==f' = foldr (\(x,x') rs -> concat [extend x x' r | r <- rs]) [r] (zip xs xs')
-renaming' (Unfold f xs p) (Unfold f' xs' p') r = foldr (\(x,x') rs -> concat [extend x x' r | r <- rs]) (renaming' p p' r) (zip xs xs') 
-renaming' (Fold f xs) (Fold f' xs') r = foldr (\(x,x') rs -> concat [extend x x' r | r <- rs]) [r] (zip xs xs')
 renaming' p q r = []
 
 extend x x' r = if    x `elem` map fst r
                 then [r | (x,x') `elem` r]
                 else [(x,x'):r]
+
+-- named processes in a specification
+
+procs p d = procs' d p []
+
+procs' d Null fs = fs
+procs' d (Input x y p) fs = procs' d p fs
+procs' d (Output x y p) fs = procs' d p fs
+procs' d (Tau p) fs = procs' d p fs
+procs' d (New x p) fs = procs' d p fs
+procs' d (Compose p q) fs = procs' d p (procs' d q fs)
+procs' d (Compose' p q) fs = procs' d p (procs' d q fs)
+procs' d (Match x y p) fs = procs' d p fs
+procs' d (Choice p q) fs = procs' d p (procs' d q fs)
+procs' d (Call f xs) fs = if   f `elem` fs
+                          then fs
+                          else case lookup f d of
+                                  Nothing -> f:fs
+                                  Just (xs,p)  -> procs' d p (f:fs)
 
 -- convert named process definitions to serial form
 
@@ -119,36 +128,36 @@ blaze (Compose' p q) = Compose' (blaze p) (blaze q)
 blaze (Match x y p) = Match x y (blaze p)
 blaze (Choice p q) = Choice (blaze p) (blaze q)
 blaze (Call f xs) = Call f xs
-blaze (Unfold f xs p) = Unfold f xs (blaze p)
-blaze (Fold f xs) = Fold f xs
 
 -- pretty print processes
 
+prettyName x = let (s1,s2) = span (/= '\'') x
+               in  if null s2 then text s1 else text s1 <> int (length s2)
+
 prettyProcess Null = text "0"
-prettyProcess (Input x y p) = text x <> parens (text y) <> text "." <> prettyProcess' p
-prettyProcess (Output x y p) = text x <> text "<" <> text y <> text ">" <> text "." <> prettyProcess' p
+prettyProcess (Input x y p) = prettyName x <> parens (prettyName y) <> text "." <> prettyProcess' p
+prettyProcess (Output x y p) = prettyName x <> text "<" <> prettyName y <> text ">" <> text "." <> prettyProcess' p
 prettyProcess (Tau p) = text "tau" <> text "." <> prettyProcess' p
-prettyProcess (New x p) = parens (text "new" <+> text x) <+> prettyProcess' p
+prettyProcess (New x p) = parens (text "new" <+> prettyName x) <+> prettyProcess' p
 prettyProcess (Compose p q) = prettyProcess' p <+> text "|" <+> prettyProcess' q
 prettyProcess (Compose' p q) = prettyProcess' p <+> text "|" <+> prettyProcess' q
-prettyProcess (Match x y p) = brackets(text x <> text "=" <> text y) <> prettyProcess' p
+prettyProcess (Match x y p) = brackets(prettyName x <> text "=" <> prettyName y) <> prettyProcess' p
 prettyProcess (Choice p q) = prettyProcess' p <+> text "+" <+> prettyProcess' q
-prettyProcess (Call f xs) = text f <> parens (hcat (punctuate comma (map text xs))) 
-prettyProcess (Unfold f xs p) = text f <> parens (hcat (punctuate comma (map text xs))) <+> text "=" <+> prettyProcess p
-prettyProcess (Fold f xs) = text f <> parens (hcat (punctuate comma (map text xs)))
+prettyProcess (Call f xs) = prettyName f <> parens (hcat (punctuate comma (map prettyName xs))) 
 
 prettyProcess' Null = text "0"
-prettyProcess' (Input x y p) = text x <> parens (text y) <> text "." <> prettyProcess' p
-prettyProcess' (Output x y p) = text x <> text "<" <> text y <> text ">" <> text "." <> prettyProcess' p
+prettyProcess' (Input x y p) = prettyName x <> parens (prettyName y) <> text "." <> prettyProcess' p
+prettyProcess' (Output x y p) = prettyName x <> text "<" <> prettyName y <> text ">" <> text "." <> prettyProcess' p
 prettyProcess' (Tau p) = text "tau" <> text "." <> prettyProcess' p
-prettyProcess' (New x p) = parens (text "new" <+> text x) <+> prettyProcess' p
-prettyProcess' (Match x y p) = brackets(text x <> text "=" <> text y) <> prettyProcess' p
-prettyProcess' (Call f xs) = text f <> parens (hcat (punctuate comma (map text xs))) 
+prettyProcess' (New x p) = parens (text "new" <+> prettyName x) <+> prettyProcess' p
+prettyProcess' (Match x y p) = brackets(prettyName x <> text "=" <> prettyName y) <> prettyProcess' p
+prettyProcess' (Call f xs) = prettyName f <> parens (hcat (punctuate comma (map prettyName xs))) 
 prettyProcess' p = parens (prettyProcess p)
 
-prettySpec (p,d) = if null d then prettyProcess p else prettyProcess p $$ text "where" $$ prettyEnv d
+prettySpec (p,d) = let d' = [def | def <- d, fst def `elem` procs p d]          
+                   in  if null d' then prettyProcess p else prettyProcess p $$ text "where" $$ prettyEnv d'
 
-prettyEnv d = vcat (punctuate semi $ map (\(f,(xs,p)) -> text f <> parens(hcat (punctuate comma (map text xs))) <+> equals <+> prettyProcess p) d)
+prettyEnv d = vcat (punctuate semi $ map (\(f,(xs,p)) -> prettyName f <> parens(hcat (punctuate comma (map prettyName xs))) <+> equals <+> prettyProcess p) d)
 
 -- lexing and parsing
 
@@ -178,7 +187,7 @@ reservedOp = T.reservedOp lexer
 
 fun = do
       c <- upper
-      cs <- many letter
+      cs <- many (letter <|> oneOf "_'")
       spaces
       return (c:cs)
 

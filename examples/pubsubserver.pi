@@ -1,0 +1,3 @@
+(new humidity) (Data(hs,humidity) | Data(humidity,opa) | Data(hs,humidity) | Data(humidity,ca))
+where
+Data(i,o) = i(x).o<x>.Data(i,o)
