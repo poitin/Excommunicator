@@ -187,7 +187,7 @@ reservedOp = T.reservedOp lexer
 
 fun = do
       c <- upper
-      cs <- many (letter <|> oneOf "_'")
+      cs <- many (letter <|> digit <|> oneOf "_'")
       spaces
       return (c:cs)
 

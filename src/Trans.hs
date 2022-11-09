@@ -32,7 +32,7 @@ par p (Compose' q1 q2) r m d = let (p',m',d') = par p q1 [] m d
                                in  (foldr New (Compose' p' q') xs,m'',d'')
 par (Call f xs) q r m d = let p = Compose (Call f xs) q
                               xs'' = free p \\ r
-                          in  case [f' | (f',(xs',p')) <- m, {-length xs' == length xs'' &&-} not (null (renaming' p' p []{-(zip xs' xs'')-}))] of
+                          in  case [f' | (f',(xs',p')) <- m, length xs' == length xs'' && not (null (renaming' p' p (zip xs' xs'')))] of
                                  [] -> case lookup f d of
                                           Nothing -> error ("Undefined process: "++f)
                                           Just (xs',p')  -> let f' = renameVar (map fst m ++ map fst d) f
