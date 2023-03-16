@@ -44,9 +44,9 @@ Pi> :proc
 To apply the excommunication transformation to the current specification:
 ```
 Pi> :transform  
-l(x'').B''(l,r,x'')
+l(x2).B7(l,r,x2)
 where
-B''(l,r,x'') = l(x''').r<x''>.B''(l,r,x''') + ([r=l]B''(l,r,x'') + r<x''>.l(x'').B''(l,r,x''))  
+B7(l,r,x2) = l(x3).r<x2>.B7(l,r,x3) + ([r=l]B7(l,r,x2) + r<x2>.l(x2).B7(l,r,x2))  
 ```
 
 To quit from the program:
