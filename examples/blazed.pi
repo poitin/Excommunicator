@@ -1,0 +1,4 @@
+(new m) (B(l,m) | B(m,r))
+where
+B(i,o) = (i(x).o<x>.0) | B(i,o)
+

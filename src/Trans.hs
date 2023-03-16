@@ -12,6 +12,16 @@ par (New x p) q r m d = let x' = renameVar (free (Compose (New x p) q)) x
                         in  par (rename [(x,x')] p) q (x':r) m d
 par p (New x q) r m d = let x' = renameVar (free (Compose p (New x q))) x
                         in  par p (rename [(x,x')] q) (x':r) m d
+par (Match x y p) q r m d 
+   | x==y = par p q r m d
+   | x `elem` r || y `elem` r = (Null,m,d)
+   | otherwise = let (p',m',d') = par p q r m d
+                 in (Match x y p',m',d')
+par p (Match x y q) r m d 
+   | x==y = par p q r m d
+   | x `elem` r || y `elem` r = (Null,m,d)
+   | otherwise = let (p',m',d') = par p q r m d
+                 in (Match x y p',m',d')
 par (Choice p1 p2) q r m d = let (p',m',d') = par p1 q r m d
                                  (p'',m'',d'') = par p2 q r m' d'
                              in (choice p' p'',m'',d'')
@@ -58,19 +68,13 @@ par p q r m d = let (p',m',d') = lpar p q r m d
 
 -- transform left-prioritised parallel composition
 
-lpar (Match x y p) q r m d
-   | x==y = par p q r m d
-   | x `elem` r || y `elem` r = (Null,m,d)
-   | otherwise = let (p',m',d') = par p q r m d
-                 in (Match x y p',m',d')
 lpar (Output x y p) (Input x' y' q) r m d 
-   | x `elem` r = (Null,m,d)
-   | y `elem` r = let (p',m',d') = lpar (Match x x' p) (rename [(y',y)] q) (r \\[y]) m d
-                      (p'',m'',d'') = par p (Input x' y' q) (r \\ [y]) m' d'
-                  in  (New y (choice p' (Output x y p'')),m'',d'')
-   | otherwise = let (p',m',d') = lpar (Match x x' p) (rename [(y',y)] q) r m d
-                     (p'',m'',d'') = par p (Input x' y' q) r m' d'
-                 in  (choice p' (Output x y p''),m'',d'')
+   | x `elem` r || x' `elem` r = (Null,m,d)
+   | otherwise = let (p',m',d') = par (Match x x' p) (rename [(y',y)] q) (r \\[y]) m d
+                     (p'',m'',d'') = par p (Input x' y' q) (r \\[y]) m' d'
+                 in  if   y `elem` r
+                     then (New y (choice p' (Output x y p'')),m'',d'')
+                     else (choice p' (Output x y p''),m'',d'')
 lpar (Output x y p) q r m d 
    | x `elem` r = (Null,m,d)
    | y `elem` r = let (p',m',d') = par p q (r \\ [y]) m d
@@ -83,7 +87,7 @@ lpar (Input x y p) q r m d
                      (p',m',d') = par (rename [(y,y')] p) q r m d
                  in  (Input x y' p',m',d')
 lpar (Tau p) q r m d = let (p',m',d') = par p q r m d
-                        in (Tau p',m',d')
+                       in (Tau p',m',d')
 lpar Null q r m d = (Null,m,d)
 
 choice Null p = p

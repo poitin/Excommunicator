@@ -1,5 +1,6 @@
 # Excommunicator
-Transformation Tool to Remove Internal Communication from Pi-Calculus Processes as described in the paper "Excommunication: Transforming Pi-Calculus Specifications to Remove Internal Communication"
+Transformation Tool to Remove Internal Communication from Pi-Calculus Processes using the
+Blazed Excommunication Algorith as described in the paper "Excommunication: Transforming Pi-Calculus Specifications to Remove Internal Communication"
 
 The implementation can be built and executed using stack.
 
